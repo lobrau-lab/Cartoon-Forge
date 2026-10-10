@@ -1,0 +1,63 @@
+{
+  "appName": "Anime & Cartoon Production Suite AI",
+  "appPort": 3000,
+  "backendServerUrl": "http://127.0.0.1:3000",
+  "environment": "Arch Linux / Linux x86_64",
+  "hardwareProfile": {
+    "cpu": "AMD Ryzen 7 7800X3D (8C/16T, 96MB 3D V-Cache)",
+    "gpu": "NVIDIA GeForce RTX 5070 (12GB GDDR7 Blackwell)",
+    "vramGb": 12,
+    "systemRamGb": 32,
+    "vcacheSizeMb": 96,
+    "nvencEncoding": "AV1 Dual 9th-Gen"
+  },
+  "endpoints": {
+    "healthCheck": "/api/health",
+    "scriptGeneration": "/api/script/generate",
+    "storyboardVectorize": "/api/storyboard/diffuse-keyframe",
+    "voiceDubbing": "/api/dubbing/synthesize",
+    "videoGeneration": "/api/video/generate",
+    "modelHotSwap": "/api/models/hot-swap",
+    "orchestratorRunFlow": "/api/orchestrator/run-flow",
+    "localModelsGuide": "/api/local-models/guide",
+    "hardwareAutoDetect": "/api/hardware/detect",
+    "hardwareDiagnostic": "/api/hardware/diagnostic",
+    "audioGenerate": "/api/audio/generate",
+    "selfHealingAudit": "/api/self-healing/audit",
+    "exportMaster": "/api/export/render"
+  },
+  "modelAliases": {
+    "text": {
+      "default": "Qwen2.5-7B-Instruct",
+      "fast": "Llama-3.2-3B-Instruct",
+      "heavy": "DeepSeek-R1-Distill-Qwen-14B",
+      "endpoint": "http://127.0.0.1:11434/v1"
+    },
+    "image": {
+      "default": "FLUX.1-schnell-fp8",
+      "animeCel": "Animagine-XL-3.1",
+      "endpoint": "http://127.0.0.1:7860/sdapi/v1/txt2img"
+    },
+    "voice": {
+      "default": "Kokoro-82M-ONNX",
+      "endpoint": "http://127.0.0.1:8880/v1/audio/speech"
+    },
+    "video": {
+      "default": "Wan2.1-I2V-1.3B",
+      "fast": "LTX-Video-2B",
+      "endpoint": "http://127.0.0.1:8080/v1/video/generations"
+    }
+  },
+  "hotSwapStrategy": {
+    "maxConcurrentVramUsageMb": 10752,
+    "safetyBufferMb": 1536,
+    "autoUnloadOnIdleSeconds": 120,
+    "strategy": "dynamic_fifo_with_vcache_pinning"
+  },
+  "productionVerificationFlags": {
+    "autoVerifyAgentsOnStartup": true,
+    "enableSelfHealingRetry": true,
+    "maxRetryAttempts": 3,
+    "exportFormats": ["mp4_av1", "otio_json", "fountain", "fcpx_xml", "edl_3600"]
+  }
+}

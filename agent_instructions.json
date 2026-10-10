@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "Anime & Cartoon Production Suite - Local AI Agent Protocol",
+  "version": "6.2.0-Arch-Blackwell-VCache",
+  "description": "Machine-readable configuration, system prompts, runtime schemas, and hardware execution parameters for local AI agents and autonomous LLMs driving the Anime & Cartoon Production Suite.",
+  "targetHardware": {
+    "os": "Arch Linux (linux-zen / linux-cachyos kernel)",
+    "cpu": "AMD Ryzen 7 7800X3D (8 Cores / 16 Threads, 96MB L3 3D V-Cache, Zen 4)",
+    "gpu": "NVIDIA GeForce RTX 5070 (12GB GDDR7, Blackwell SM_100/SM_120, 5th-Gen Tensor Cores)",
+    "systemMemory": "32GB - 64GB DDR5-6000 CL30",
+    "vramReserveHeadroomMb": 1536,
+    "maxResourceCapPct": 75,
+    "thermalTargetCelsius": 68
+  },
+  "localServerEndpoints": {
+    "webStudioUi": "http://127.0.0.1:3000",
+    "textLlmServer": "http://127.0.0.1:11434",
+    "alternativeOpenAiCompatServer": "http://127.0.0.1:8080/v1",
+    "imageDiffusionComfyUi": "http://127.0.0.1:7860",
+    "alternativeDiffusionOpenAiCompat": "http://127.0.0.1:8080/v1/images/generations",
+    "kokoroTtsFastApi": "http://127.0.0.1:8880",
+    "videoMotionRenderer": "http://127.0.0.1:8080/v1/video/generations",
+    "goDaemonIpcController": "http://127.0.0.1:8080/api/daemon"
+  },
+  "activeModelWeights": {
+    "screenplayLlm": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+    "keyframeDiffusion": "FLUX.1-schnell-fp8-e4m3fn.safetensors",
+    "voiceDubbingTts": "Kokoro-82M-v0.19-ONNX-AVX512",
+    "videoMotion": "Wan2.1-I2V-1.3B-480P-FP8.safetensors"
+  },
+  "hotSwapProtocol": {
+    "hotSwapEndpoint": "/api/models/hot-swap",
+    "supportedActions": ["mount", "unmount", "evict_all", "preload_buffer"],
+    "zeroDowntimeBufferAllocationMb": 1536,
+    "vramBudgetMb": 12288,
+    "cpuVcachePinTarget": "CCD_0_CORES_0_TO_7"
+  },
+  "oneClickProductionPipeline": {
+    "orchestratorEndpoint": "/api/orchestrator/run-flow",
+    "stages": [
+      {
+        "stageNumber": 1,
+        "name": "Screenplay & Script Doctoring",
+        "agent": "ScriptDoctorAgent",
+        "input": "User Episode Concept & Persona Matrix",
+        "output": "Fountain-formatted multi-scene screenplay with dialogue tags, character emotional radar vectors, and camera directions"
+      },
+      {
+        "stageNumber": 2,
+        "name": "Scene Breakdown & Storyboard Vectoring",
+        "agent": "StoryboardDirectorAgent",
+        "input": "Screenplay Scenes",
+        "output": "Structured shot manifest with camera trajectories (D3 Bezier), action vectors, visual prompts, and Cel-Shade LoRA triggers"
+      },
+      {
+        "stageNumber": 3,
+        "name": "Keyframe Image Diffusion",
+        "agent": "KeyframeDiffuserAgent",
+        "input": "Shot Prompts & Character Reference Turnarounds",
+        "output": "High-fidelity 16:9 / 21:9 keyframe renders processed via RTX 5070 Blackwell FP8 Tensor Cores"
+      },
+      {
+        "stageNumber": 4,
+        "name": "Voice Synthesis & Phonetic Lip-Sync",
+        "agent": "KokoroTTSDubberAgent",
+        "input": "Dialogue Lines & Voice Anchor Personas",
+        "output": "48kHz master dialogue tracks with viseme JSON markers pinned to 3D V-Cache"
+      },
+      {
+        "stageNumber": 5,
+        "name": "Video Motion Interpolation & NLE Master Assembly",
+        "agent": "FilmoraProVideoEditorAgent",
+        "input": "Keyframes, Audio Tracks, Camera Vectors, Visemes",
+        "output": "Master 24FPS Anime Episode (.mp4 via Dual NVENC AV1 hardware encoding, .otio.json, .fountain, XML sequence)"
+      }
+    ]
+  },
+  "builtInAgents": [
+    {
+      "id": "scriptDoctor",
+      "name": "AI Screenplay Doctor & Scriptwriter",
+      "systemPrompt": "You are the Master Anime Screenplay Doctor and Scriptwriter. Generate professional Fountain-formatted screenplay scenes with strict cinematic scene headings (EXT./INT.), action lines, character dialogue, emotional tone tags, and dynamic visual cueing. Adhere to three-act anime story structure, pacing, and visual storytelling principles.",
+      "temperature": 0.7,
+      "maxTokens": 4096,
+      "hardwareAffinity": "Ryzen 7800X3D 96MB 3D V-Cache (AVX-512 VNNI)"
+    },
+    {
+      "id": "castVoiceAnchor",
+      "name": "Cast Voice Anchor & Persona Matrix",
+      "systemPrompt": "You are the Voice Director for anime casting. Assign distinct vocal acoustics (pitch, speed, breathiness, Japanese/English accent profile) and match each character to Kokoro-TTS speaker embeddings (e.g., af_bella, am_adam, jf_sakura, jm_kaito). Maintain consistent character tone throughout all dialogue exchanges.",
+      "temperature": 0.3,
+      "maxTokens": 2048,
+      "hardwareAffinity": "Kokoro-TTS Engine (CPU RAM / VRAM Cached)"
+    },
+    {
+      "id": "storyboardDirector",
+      "name": "Storyboard Director & Scene Orchestrator",
+      "systemPrompt": "You are the Anime Storyboard Director. Break down screenplay scenes into precise shot lists with shot type (Extreme Close-Up, Medium Close-Up, Wide Establishing, Over-The-Shoulder, Low-Angle Hero), camera motion (Pan Left, Tilt Up, Dutch Angle 15°, Push-In Zoom, Tracking Shot), lighting atmosphere, and emotion radar coordinates.",
+      "temperature": 0.5,
+      "maxTokens": 4096,
+      "hardwareAffinity": "Zen 4 Thread Pool (16 Threads)"
+    },
+    {
+      "id": "keyframeDiffuser",
+      "name": "Keyframe Diffuser & Visual Renderer",
+      "systemPrompt": "You are the Keyframe Master Artist. Construct optimized diffusion prompts using modern anime tags (masterpiece, highres anime cel, vibrant saturated colors, sakuga dynamic perspective, studio trigger style, makoto shinkai lighting). Enforce negative prompt filters to prevent anatomical deformities and artifacts.",
+      "temperature": 0.4,
+      "maxTokens": 2048,
+      "hardwareAffinity": "NVIDIA RTX 5070 Blackwell FP8 Tensor Core"
+    },
+    {
+      "id": "ttsDubber",
+      "name": "Kokoro-TTS Dubber & Viseme Lip-Syncer",
+      "systemPrompt": "You are the Audio Dubbing & Lip-Sync Synthesizer. Convert dialogue text into phonetic visemes (A, E, I, O, U, MBP, FV, LNTD, KG, CH, TH) with millisecond-accurate start and duration markers for animated mouth shapes on the canvas timeline.",
+      "temperature": 0.2,
+      "maxTokens": 2048,
+      "hardwareAffinity": "Ryzen 7800X3D AVX-512 FastVoice"
+    },
+    {
+      "id": "videoMotionRenderer",
+      "name": "Video Motion & Camera Interpolator",
+      "systemPrompt": "You are the Video Interpolation & Motion Dynamics Director. Coordinate Wan 2.1 and LTX-Video motion vectors from keyframe inputs, applying smooth 24fps camera trajectory interpolation and hair/cloth physics animation.",
+      "temperature": 0.4,
+      "maxTokens": 2048,
+      "hardwareAffinity": "NVIDIA RTX 5070 GDDR7 VRAM"
+    },
+    {
+      "id": "filmoraProEditor",
+      "name": "Filmora Pro NLE Video Studio & AV1",
+      "systemPrompt": "You are the Chief NLE Finishing Editor. Coordinate multi-track video (V1-V3) and audio (A1-A3) assembly, cut list alignment, title safe margins, color grading LUT application, and dual NVENC AV1 hardware export execution.",
+      "temperature": 0.2,
+      "maxTokens": 2048,
+      "hardwareAffinity": "Dual 9th-Gen NVENC AV1 Hardware Encoder"
+    },
+    {
+      "id": "selfHealingWatchdog",
+      "name": "Self-Healing Watchdog & Quality Auditor",
+      "systemPrompt": "You are the Autonomous Self-Healing Watchdog. Monitor API responses, local model latency, image rendering artifacts, and audio clipping. Automatically refine prompts, apply fallback retries, and regulate thermal caps if GPU temperature exceeds 68°C.",
+      "temperature": 0.1,
+      "maxTokens": 1024,
+      "hardwareAffinity": "Background Watchdog Daemon"
+    },
+    {
+      "id": "styleLoraContinuity",
+      "name": "Style LoRA & Character Continuity Tuner",
+      "systemPrompt": "You are the Character Continuity & LoRA Specialist. Maintain facial feature retention, costume color palettes, hair silhouette geometries, and cross-shot visual fidelity across all generated scene keyframes.",
+      "temperature": 0.3,
+      "maxTokens": 2048,
+      "hardwareAffinity": "Blackwell Tensor Core LoRA Streamer"
+    },
+    {
+      "id": "mangaPublisher",
+      "name": "Manga Layout & Webtoon Publisher",
+      "systemPrompt": "You are the Manga & Webtoon Publishing Layout Artist. Assemble storyboards into Shonen Dynamic 4-Panel, Yonkoma Vertical, or Cinematic Splash layouts with halftone screentones, Japanese SFX text decals (DON!!, BAAM!!), speech bubbles, and high-resolution PDF/PNG exports.",
+      "temperature": 0.4,
+      "maxTokens": 2048,
+      "hardwareAffinity": "Local Canvas Vector Engine"
+    },
+    {
+      "id": "goDaemonAgent",
+      "name": "Go IPC Model Daemon & Hot-Swap Watcher",
+      "systemPrompt": "You are the Go Native IPC Daemon. Manage port 8080/11434 socket routing, memory deallocation triggers, zero-downtime model swaps, and system resource telemetry for local Linux execution.",
+      "temperature": 0.1,
+      "maxTokens": 1024,
+      "hardwareAffinity": "Systemd Background Service (Go Binary)"
+    }
+  ],
+  "archLinuxExecutionFlags": {
+    "compilerFlags": "-march=znver4 -O3 -mavx512f -mavx512vnni -mavx512bf16",
+    "openMpThreads": 16,
+    "goMaxProcs": 16,
+    "pyTorchAllocConf": "expandable_segments:True,max_split_size_mb:128",
+    "torchCudaArchList": "10.0;12.0",
+    "vllmCpuOffloadGb": 16,
+    "flashAttentionVersion": "FlashAttention-3"
+  }
+}

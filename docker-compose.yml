@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # 1. Main Anime & Cartoon Production Suite Web Application
+  anime-studio:
+    build: .
+    container_name: anime-production-suite
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./models:/app/models
+      - ./exports:/app/exports
+    depends_on:
+      - kokoro-tts
+    networks:
+      - anime-net
+
+  # 2. Ollama Local LLM & Screenplay Engine
+  ollama:
+    image: ollama/ollama:latest
+    container_name: anime-ollama-llm
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - anime-net
+
+  # 3. Kokoro-82M Voice Synthesis FastAPI Server
+  kokoro-tts:
+    image: ghcr.io/resemble-ai/kokoro-fastapi:latest
+    container_name: anime-kokoro-tts
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    environment:
+      - FASTAPI_PORT=8880
+    networks:
+      - anime-net
+
+volumes:
+  ollama-models:
+    driver: local
+
+networks:
+  anime-net:
+    driver: bridge

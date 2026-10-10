@@ -1,0 +1,6 @@
+{
+  "name": "Anime & Cartoon Production Suite",
+  "description": "Complete AI animation pipeline with script doctoring, character retention matrix, automated storyboarding, real-time voice synthesis dubbing, and industry-standard exports (.otio, .fountain, XML).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
