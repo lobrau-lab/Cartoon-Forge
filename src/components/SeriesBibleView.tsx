@@ -1145,9 +1145,14 @@ ${activeBible.characterArcs.map(arc => `- ${arc.characterName}:
       seriesTitle: activeBible.title.toUpperCase()
     };
 
-    // If active screenplay has no cast, pull from bible master cast
-    if (project.cast.length === 0 && activeBible.cast.length > 0) {
-      updates.cast = activeBible.cast;
+    // Inject any missing cast members from bible master cast
+    if (activeBible.cast.length > 0) {
+      const existingCastIds = new Set(project.cast.map(c => c.id));
+      const missingCast = activeBible.cast.filter(c => !existingCastIds.has(c.id));
+
+      if (missingCast.length > 0) {
+        updates.cast = [...project.cast, ...missingCast];
+      }
     }
 
     onUpdateProject(updates);
