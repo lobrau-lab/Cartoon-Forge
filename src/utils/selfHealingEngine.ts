@@ -35,15 +35,9 @@ export function registerRealTimeHeal(
  * Audits project data structures for inconsistencies, broken links, 
  * malformed parameters, and unaligned timecodes, then auto-corrects them seamlessly.
  */
-export function auditAndHealProject(project: EpisodeProject): HealingResult {
-  const healLogs: HealingResult['healLogs'] = [];
+
+function healProjectMetadata(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
   let fixedIssuesCount = 0;
-  const now = new Date().toLocaleTimeString();
-
-  // Clone project for immutable repair
-  const healed: EpisodeProject = JSON.parse(JSON.stringify(project));
-
-  // 1. HEAL BASIC PROJECT METADATA
   if (!healed.id) {
     healed.id = `proj-${Date.now()}`;
     fixedIssuesCount++;
@@ -77,7 +71,12 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
     });
   }
 
-  // 2. HEAL CAST ANCHORS & RETENTION LOCKS
+
+  return fixedIssuesCount;
+}
+
+function healCastAnchors(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
+  let fixedIssuesCount = 0;
   if (!healed.cast || !Array.isArray(healed.cast) || healed.cast.length === 0) {
     healed.cast = JSON.parse(JSON.stringify(INITIAL_CAST));
     fixedIssuesCount++;
@@ -119,7 +118,12 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
     });
   }
 
-  // 3. HEAL SCENES & SCENE NUMBERS
+
+  return fixedIssuesCount;
+}
+
+function healScenes(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
+  let fixedIssuesCount = 0;
   if (!healed.scenes || !Array.isArray(healed.scenes)) {
     healed.scenes = [];
   }
@@ -160,7 +164,12 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
     });
   }
 
-  // 4. HEAL SHOT SEQUENCE & TIME CODES
+
+  return fixedIssuesCount;
+}
+
+function healShots(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
+  let fixedIssuesCount = 0;
   if (!healed.shots || !Array.isArray(healed.shots) || healed.shots.length === 0) {
     healed.shots = [
       {
@@ -248,7 +257,12 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
     });
   }
 
-  // 5. HEAL DUBBING TRACKS ALIGNMENT WITH SHOT DIALOGUE
+
+  return fixedIssuesCount;
+}
+
+function healDubbingTracks(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
+  let fixedIssuesCount = 0;
   if (!healed.dubbingTracks || !Array.isArray(healed.dubbingTracks)) {
     healed.dubbingTracks = [];
   }
@@ -306,7 +320,12 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
 
   healed.dubbingTracks = updatedDubbingTracks;
 
-  // 6. HEAL STYLE PRESET
+
+  return fixedIssuesCount;
+}
+
+function healStylePreset(healed: EpisodeProject, healLogs: HealingResult['healLogs'], now: string): number {
+  let fixedIssuesCount = 0;
   if (!healed.style || !PRESET_STYLES.find(s => s.id === healed.style.id)) {
     healed.style = PRESET_STYLES[0];
     fixedIssuesCount++;
@@ -318,7 +337,25 @@ export function auditAndHealProject(project: EpisodeProject): HealingResult {
     });
   }
 
-  // Update timestamps
+
+  return fixedIssuesCount;
+}
+
+export function auditAndHealProject(project: EpisodeProject): HealingResult {
+  const healLogs: HealingResult['healLogs'] = [];
+  let fixedIssuesCount = 0;
+  const now = new Date().toLocaleTimeString();
+
+  // Clone project for immutable repair
+  const healed: EpisodeProject = JSON.parse(JSON.stringify(project));
+
+  fixedIssuesCount += healProjectMetadata(healed, healLogs, now);
+  fixedIssuesCount += healCastAnchors(healed, healLogs, now);
+  fixedIssuesCount += healScenes(healed, healLogs, now);
+  fixedIssuesCount += healShots(healed, healLogs, now);
+  fixedIssuesCount += healDubbingTracks(healed, healLogs, now);
+  fixedIssuesCount += healStylePreset(healed, healLogs, now);
+
   healed.updatedAt = new Date().toISOString();
 
   // Calculate health score (100 minus penalty per issue, min 85 after repair)
