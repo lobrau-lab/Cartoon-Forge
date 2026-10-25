@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Cpu, Terminal, Zap, Thermometer, Bot } from 'lucide-react';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
@@ -29,9 +29,24 @@ import { auditAndHealProject, registerRealTimeHeal } from './utils/selfHealingEn
 import { SelfHealingFloatingWidget } from './components/SelfHealingFloatingWidget';
 import { FoolproofAutoConnectHud } from './components/FoolproofAutoConnectHud';
 import { loadHardwareConfig } from './utils/hardwareEngine';
+import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { 
+  ProjectMetadata,
+  getProjectsRegistry, 
+  saveProjectToStorage, 
+  loadProjectFromStorage, 
+  deleteProjectFromStorage, 
+  duplicateProjectInStorage, 
+  createBlankProject, 
+  clearProjectExamples, 
+  getAutoSaveEnabled, 
+  setAutoSaveEnabled, 
+  getAutoSaveIntervalSec, 
+  setAutoSaveIntervalSec as setAutoSaveIntervalSecStorage 
+} from './utils/projectStorage';
 
-import { EpisodeProject, ProjectStyle, CharacterAnchor, ScriptScene, ShotItem, ExportFormats, ShowBible } from './types';
-import { MOCK_PROJECT, PRESET_STYLES, INITIAL_CAST } from './data/sampleProjects';
+import { EpisodeProject, ProjectStyle, CharacterAnchor, ScriptScene, ShotItem, ExportFormats, ShowBible, ExportConfiguration } from './types';
+import { MOCK_PROJECT } from './data/sampleProjects';
 
 const TAB_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -60,6 +75,13 @@ const TAB_LABELS: Record<string, string> = {
 
 export default function App() {
   const [project, setProject] = useState<EpisodeProject>(() => {
+    // 1. Check active project ID from multi-project storage
+    const activeId = localStorage.getItem('anime_suite_active_project_id');
+    if (activeId) {
+      const p = loadProjectFromStorage(activeId);
+      if (p) return p;
+    }
+    // 2. Check legacy key
     const saved = localStorage.getItem('anime_suite_project');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
@@ -68,6 +90,25 @@ export default function App() {
   });
 
   const [lastSavedString, setLastSavedString] = useState<string>(() => JSON.stringify(project));
+  const [lastSavedAt, setLastSavedAt] = useState<string>(() => new Date().toISOString());
+
+  // Projects Registry state
+  const [projectsList, setProjectsList] = useState<ProjectMetadata[]>(() => {
+    const registry = getProjectsRegistry();
+    if (registry.length > 0) return registry;
+    // Pre-seed registry with initial project
+    const initialMeta = saveProjectToStorage(project, false);
+    return [initialMeta];
+  });
+
+  // Multi-Project Manager Modal
+  const [showProjectManagerModal, setShowProjectManagerModal] = useState<boolean>(false);
+
+  // Autosave configuration
+  const [isAutoSaveEnabled, setIsAutoSaveEnabled] = useState<boolean>(() => getAutoSaveEnabled());
+  const [autoSaveIntervalSec, setAutoSaveIntervalSec] = useState<number>(() => {
+    return getAutoSaveIntervalSec() || (loadHardwareConfig().autoSaveIntervalSeconds ?? 15);
+  });
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [pendingTargetTab, setPendingTargetTab] = useState<string | null>(null);
@@ -96,8 +137,9 @@ export default function App() {
       if (result.fixedIssuesCount > 0) {
         console.log(`[Boot Self-Healing Sweep] Repaired ${result.fixedIssuesCount} issues automatically.`);
         setProject(result.healedProject);
-        localStorage.setItem('anime_suite_project', JSON.stringify(result.healedProject));
+        saveProjectToStorage(result.healedProject, true);
         setLastSavedString(JSON.stringify(result.healedProject));
+        setProjectsList(getProjectsRegistry());
       }
     } catch (e) {
       console.error('[Boot Self-Healing Failed]', e);
@@ -108,46 +150,65 @@ export default function App() {
   const currentProjectString = JSON.stringify(project);
   const hasUnsavedChanges = currentProjectString !== lastSavedString;
 
-  // Background Autosave interval configuration from Local Settings
-  const [autoSaveIntervalSec, setAutoSaveIntervalSec] = useState<number>(() => {
-    return loadHardwareConfig().autoSaveIntervalSeconds ?? 30;
-  });
-
   // Sync background autosave interval when Local Settings change
   useEffect(() => {
     const syncAutoSaveConfig = () => {
-      const cfg = loadHardwareConfig();
-      setAutoSaveIntervalSec(cfg.autoSaveIntervalSeconds ?? 30);
+      const storedInterval = getAutoSaveIntervalSec();
+      setAutoSaveIntervalSec(storedInterval);
+      setIsAutoSaveEnabled(getAutoSaveEnabled());
     };
 
     window.addEventListener('storage', syncAutoSaveConfig);
     window.addEventListener('hardware_config_updated', syncAutoSaveConfig);
+    window.addEventListener('autosave_setting_changed', syncAutoSaveConfig);
+    window.addEventListener('autosave_interval_changed', syncAutoSaveConfig);
     return () => {
       window.removeEventListener('storage', syncAutoSaveConfig);
       window.removeEventListener('hardware_config_updated', syncAutoSaveConfig);
+      window.removeEventListener('autosave_setting_changed', syncAutoSaveConfig);
+      window.removeEventListener('autosave_interval_changed', syncAutoSaveConfig);
     };
   }, []);
 
-  // Automatic Background Project Save to localStorage at user-configured interval
+  // 1. Debounced Live Project Autosave on every state edit
   useEffect(() => {
-    if (autoSaveIntervalSec <= 0) return;
+    if (!isAutoSaveEnabled) return;
+    const currentStr = JSON.stringify(project);
+    if (currentStr === lastSavedString) return;
+
+    const timer = setTimeout(() => {
+      saveProjectToStorage(project, true);
+      setLastSavedString(currentStr);
+      const now = new Date().toISOString();
+      setLastSavedAt(now);
+      setProjectsList(getProjectsRegistry());
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [project, isAutoSaveEnabled, lastSavedString]);
+
+  // 2. Background Periodic Project Autosave at configured interval
+  useEffect(() => {
+    if (!isAutoSaveEnabled || autoSaveIntervalSec <= 0) return;
 
     const intervalId = setInterval(() => {
       if (project) {
         const currentStr = JSON.stringify(project);
-        localStorage.setItem('anime_suite_project', currentStr);
+        saveProjectToStorage(project, true);
         setLastSavedString(currentStr);
+        setLastSavedAt(new Date().toISOString());
+        setProjectsList(getProjectsRegistry());
       }
     }, autoSaveIntervalSec * 1000);
 
     return () => clearInterval(intervalId);
-  }, [project, autoSaveIntervalSec]);
+  }, [project, isAutoSaveEnabled, autoSaveIntervalSec]);
 
-  // Intercept tab changes to trigger session auto-save alert
+  // Intercept tab changes to trigger session auto-save alert if user disabled autosave
   const handleRequestTabChange = (targetTab: string) => {
     if (targetTab === activeTab) return;
     
-    if (hasUnsavedChanges) {
+    if (hasUnsavedChanges && !isAutoSaveEnabled) {
       setPendingTargetTab(targetTab);
       setShowAutoSaveModal(true);
     } else {
@@ -155,10 +216,162 @@ export default function App() {
     }
   };
 
-  // Manual save session
+  // User Action: Manual save project session
   const handleManualSaveSession = () => {
-    localStorage.setItem('anime_suite_project', currentProjectString);
-    setLastSavedString(currentProjectString);
+    saveProjectToStorage(project, false);
+    const str = JSON.stringify(project);
+    setLastSavedString(str);
+    const now = new Date().toISOString();
+    setLastSavedAt(now);
+    setProjectsList(getProjectsRegistry());
+
+    registerRealTimeHeal(
+      'Schema',
+      `Manual Project Snapshot Saved: "${project.title}"`,
+      `Persisted ${project.scenes?.length || 0} scenes, ${project.shots?.length || 0} shots to project storage (ID: ${project.id}).`,
+      'heal'
+    );
+  };
+
+  // User Action: Toggle Autosave ON / OFF
+  const handleToggleAutoSave = (enable?: boolean) => {
+    const nextState = enable !== undefined ? enable : !isAutoSaveEnabled;
+    setIsAutoSaveEnabled(nextState);
+    setAutoSaveEnabled(nextState);
+
+    if (nextState) {
+      saveProjectToStorage(project, true);
+      setLastSavedString(JSON.stringify(project));
+      setLastSavedAt(new Date().toISOString());
+      setProjectsList(getProjectsRegistry());
+    }
+
+    registerRealTimeHeal(
+      'Schema',
+      `Autosave ${nextState ? 'Activated' : 'Paused'}`,
+      nextState 
+        ? `Automatic persistence active (running live on edits and every ${autoSaveIntervalSec}s).` 
+        : 'Autosave paused. Project changes will only commit on manual save.',
+      'heal'
+    );
+  };
+
+  // User Action: Change Autosave Interval
+  const handleChangeAutoSaveInterval = (sec: number) => {
+    setAutoSaveIntervalSec(sec);
+    setAutoSaveIntervalSecStorage(sec);
+  };
+
+  // User Action: Switch to a different project
+  const handleSwitchProject = (projectId: string) => {
+    // 1. Commit current project before switching
+    saveProjectToStorage(project, false);
+
+    // 2. Load target project
+    const target = loadProjectFromStorage(projectId);
+    if (target) {
+      setProject(target);
+      const targetStr = JSON.stringify(target);
+      setLastSavedString(targetStr);
+      setLastSavedAt(new Date().toISOString());
+      setExportData(null);
+      setProjectsList(getProjectsRegistry());
+
+      registerRealTimeHeal(
+        'Schema',
+        `Switched Workspace Project to "${target.title}"`,
+        `Loaded ${target.scenes?.length || 0} scenes, ${target.shots?.length || 0} shots, and ${target.cast?.length || 0} characters into active session.`,
+        'heal'
+      );
+    }
+  };
+
+  // User Action: Create New Blank Project (Zero Examples)
+  const handleCreateNewProject = (newProj: EpisodeProject) => {
+    // 1. Save current project
+    saveProjectToStorage(project, false);
+
+    // 2. Save new blank project & make active
+    saveProjectToStorage(newProj, false);
+    setProject(newProj);
+    const projStr = JSON.stringify(newProj);
+    setLastSavedString(projStr);
+    setLastSavedAt(new Date().toISOString());
+    setExportData(null);
+    setProjectsList(getProjectsRegistry());
+
+    registerRealTimeHeal(
+      'Schema',
+      `Created New Blank Project: "${newProj.title}"`,
+      `Initialized clean workspace with zero mock examples, ready for custom anime production.`,
+      'heal'
+    );
+  };
+
+  // User Action: Clear all examples from current project
+  const handleClearCurrentProjectExamples = () => {
+    const cleared = clearProjectExamples(project);
+    setProject(cleared);
+    saveProjectToStorage(cleared, false);
+    const clearedStr = JSON.stringify(cleared);
+    setLastSavedString(clearedStr);
+    setLastSavedAt(new Date().toISOString());
+    setExportData(null);
+    setProjectsList(getProjectsRegistry());
+
+    registerRealTimeHeal(
+      'Schema',
+      `Cleared All Mock Examples from "${project.title}"`,
+      `Removed sample scenes, characters, and shots. Workspace is now a pristine blank slate.`,
+      'heal'
+    );
+  };
+
+  // User Action: Delete a project
+  const handleDeleteProject = (projectId: string) => {
+    const { remaining, nextProjectId } = deleteProjectFromStorage(projectId);
+    setProjectsList(remaining);
+
+    if (projectId === project.id) {
+      if (nextProjectId) {
+        const next = loadProjectFromStorage(nextProjectId);
+        if (next) {
+          setProject(next);
+          setLastSavedString(JSON.stringify(next));
+          setLastSavedAt(new Date().toISOString());
+        }
+      } else {
+        // If all projects deleted, create a brand new blank project
+        const fresh = createBlankProject();
+        setProject(fresh);
+        saveProjectToStorage(fresh, false);
+        setLastSavedString(JSON.stringify(fresh));
+        setProjectsList(getProjectsRegistry());
+      }
+    }
+
+    registerRealTimeHeal(
+      'Schema',
+      `Deleted Project`,
+      `Removed project ${projectId} from storage registry.`,
+      'heal'
+    );
+  };
+
+  // User Action: Duplicate project
+  const handleDuplicateProject = (sourceProject: EpisodeProject) => {
+    const cloned = duplicateProjectInStorage(sourceProject);
+    setProject(cloned);
+    setLastSavedString(JSON.stringify(cloned));
+    setLastSavedAt(new Date().toISOString());
+    setProjectsList(getProjectsRegistry());
+
+    registerRealTimeHeal(
+      'Schema',
+      `Duplicated Project: "${cloned.title}"`,
+      `Created complete copy of project hierarchy.`,
+      'heal'
+    );
   };
 
   // Handler: Update Project state
@@ -815,18 +1028,20 @@ Do not output any markdown code blocks, explanations, preambles, or postambles. 
   };
 
   // Handler: Compile Export Package
-  const handleGenerateExports = async () => {
+  const handleGenerateExports = async (exportConfig?: ExportConfiguration, targetProject?: EpisodeProject): Promise<ExportFormats | undefined> => {
     setIsGenerating(true);
     try {
       const res = await fetch('/api/export/project', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project })
+        body: JSON.stringify({ project: targetProject || project, config: exportConfig })
       });
       const data = await res.json();
       if (data.exports) {
-        setExportData(data.exports);
-        setActiveTab('export');
+        if (!targetProject) {
+          setExportData(data.exports);
+        }
+        return data.exports;
       }
     } catch (err) {
       console.error('Export compilation error:', err);
@@ -877,6 +1092,33 @@ Do not output any markdown code blocks, explanations, preambles, or postambles. 
           hasUnsavedChanges={hasUnsavedChanges}
           onManualSaveSession={handleManualSaveSession}
           onOpenSelfHealing={() => setShowSelfHealingModal(true)}
+          isAutoSaveEnabled={isAutoSaveEnabled}
+          onToggleAutoSave={() => handleToggleAutoSave()}
+          onOpenProjectManager={() => setShowProjectManagerModal(true)}
+          onClearExamples={handleClearCurrentProjectExamples}
+          lastSavedAt={lastSavedAt}
+          projectsCount={projectsList.length}
+          hasExamples={Boolean(project.scenes?.length > 0 || project.shots?.length > 0 || project.cast?.length > 0)}
+        />
+
+        {/* Multi-Project & Autosave Manager Modal */}
+        <ProjectManagerModal
+          isOpen={showProjectManagerModal}
+          onClose={() => setShowProjectManagerModal(false)}
+          currentProject={project}
+          projectsList={projectsList}
+          onSwitchProject={handleSwitchProject}
+          onCreateNewProject={handleCreateNewProject}
+          onDeleteProject={handleDeleteProject}
+          onDuplicateProject={handleDuplicateProject}
+          onClearExamples={handleClearCurrentProjectExamples}
+          onManualSave={handleManualSaveSession}
+          isAutoSaveEnabled={isAutoSaveEnabled}
+          onToggleAutoSave={handleToggleAutoSave}
+          autoSaveIntervalSec={autoSaveIntervalSec}
+          onChangeAutoSaveInterval={handleChangeAutoSaveInterval}
+          lastSavedAt={lastSavedAt}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
 
         {/* Self-Healing System Integrity Diagnostic Modal */}
@@ -939,6 +1181,11 @@ Do not output any markdown code blocks, explanations, preambles, or postambles. 
                 onNavigateTab={handleRequestTabChange}
                 selectedTextModel={selectedTextModel}
                 onSelectTextModel={handleSelectTextModel}
+                onOpenProjectManager={() => setShowProjectManagerModal(true)}
+                onClearExamples={handleClearCurrentProjectExamples}
+                onManualSave={handleManualSaveSession}
+                isAutoSaveEnabled={isAutoSaveEnabled}
+                onToggleAutoSave={() => handleToggleAutoSave()}
               />
             )}
 

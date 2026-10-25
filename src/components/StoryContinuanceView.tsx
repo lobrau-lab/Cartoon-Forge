@@ -65,18 +65,7 @@ export const StoryContinuanceView: React.FC<StoryContinuanceViewProps> = ({
         console.error('Failed to load save slots', e);
       }
     } else {
-      // Seed with an initial backup draft slot representing the start
-      const initialSlot: SaveSlot = {
-        id: 'slot-initial',
-        name: 'Aether Shift 2099 - Prologue Draft',
-        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-        project: {
-          ...MOCK_PROJECT,
-          title: 'Episode 01: Awakening of the Quantum Blade (Backup)'
-        }
-      };
-      setSaveSlots([initialSlot]);
-      localStorage.setItem('anime_suite_saves', JSON.stringify([initialSlot]));
+      setSaveSlots([]);
     }
   }, []);
 

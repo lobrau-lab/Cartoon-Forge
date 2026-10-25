@@ -40,7 +40,11 @@ import {
   Pause,
   Sliders,
   TrendingUp,
-  Layers
+  Layers,
+  FolderGit2,
+  Eraser,
+  Check,
+  Save
 } from 'lucide-react';
 import { detectHardwareCapabilities, loadHardwareConfig } from '../utils/hardwareEngine';
 
@@ -52,6 +56,11 @@ interface DashboardViewProps {
   onNavigateTab: (tab: string) => void;
   selectedTextModel?: string;
   onSelectTextModel?: (model: string) => void;
+  onOpenProjectManager?: () => void;
+  onClearExamples?: () => void;
+  onManualSave?: () => void;
+  isAutoSaveEnabled?: boolean;
+  onToggleAutoSave?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -61,7 +70,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isGenerating,
   onNavigateTab,
   selectedTextModel = 'gemini-3.5-flash',
-  onSelectTextModel
+  onSelectTextModel,
+  onOpenProjectManager,
+  onClearExamples,
+  onManualSave,
+  isAutoSaveEnabled = true,
+  onToggleAutoSave
 }) => {
   const [premiseInput, setPremiseInput] = useState(
     'In a rain-drenched cyberpunk metropolis, a lone pilot and a brilliant engineer must prevent a corrupted general from detonating the quantum power core.'
@@ -437,6 +451,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       )}
+
+      {/* 🚀 Active Project & Autosave Control Bar */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-800 text-cyan-400">
+            <FolderGit2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 uppercase">
+                Active Project
+              </span>
+              <span className="text-xs font-mono text-slate-400">
+                {project.seriesTitle} · Ep {project.episodeNumber}
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{isAutoSaveEnabled ? 'Autosave Active' : 'Autosave Paused'}</span>
+              </span>
+            </div>
+            <h3 className="text-base font-bold text-slate-100 tracking-tight mt-0.5">
+              {project.title}
+            </h3>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Autosave Toggle Button */}
+          {onToggleAutoSave && (
+            <button
+              onClick={onToggleAutoSave}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
+                isAutoSaveEnabled
+                  ? 'bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/10'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border-slate-800'
+              }`}
+              title="Click to toggle autosave on/off"
+            >
+              <Zap className={`w-3.5 h-3.5 ${isAutoSaveEnabled ? 'text-cyan-400 animate-pulse' : 'text-slate-500'}`} />
+              <span>{isAutoSaveEnabled ? 'Autosave: ON' : 'Autosave: OFF'}</span>
+            </button>
+          )}
+
+          {/* Save Now Button */}
+          {onManualSave && (
+            <button
+              onClick={onManualSave}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-mono font-semibold transition cursor-pointer"
+              title="Force immediate save of this project"
+            >
+              <Save className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Save Project</span>
+            </button>
+          )}
+
+          {/* Clear Examples Button */}
+          {(project.scenes?.length > 0 || project.cast?.length > 0 || project.shots?.length > 0) && onClearExamples && (
+            <button
+              onClick={onClearExamples}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800/80 text-xs font-mono font-bold transition cursor-pointer"
+              title="Clear all example scenes, cast, and shots to start blank"
+            >
+              <Eraser className="w-3.5 h-3.5 text-rose-400" />
+              <span>Clear Examples</span>
+            </button>
+          )}
+
+          {/* Open Projects Hub Button */}
+          {onOpenProjectManager && (
+            <button
+              onClick={onOpenProjectManager}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold shadow-md transition cursor-pointer"
+            >
+              <FolderGit2 className="w-3.5 h-3.5" />
+              <span>Switch / New Project</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Top Hero Banner & Quick Generator */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 p-6 md:p-8 shadow-2xl">

@@ -26,7 +26,11 @@ import {
   PenTool,
   Terminal,
   Gauge,
-  Bot
+  Bot,
+  FolderGit2,
+  Eraser,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -42,6 +46,13 @@ interface HeaderProps {
   hasUnsavedChanges?: boolean;
   onManualSaveSession?: () => void;
   onOpenSelfHealing?: () => void;
+  isAutoSaveEnabled?: boolean;
+  onToggleAutoSave?: () => void;
+  onOpenProjectManager?: () => void;
+  onClearExamples?: () => void;
+  lastSavedAt?: string;
+  projectsCount?: number;
+  hasExamples?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -56,7 +67,14 @@ export const Header: React.FC<HeaderProps> = ({
   isGenerating,
   hasUnsavedChanges = false,
   onManualSaveSession,
-  onOpenSelfHealing
+  onOpenSelfHealing,
+  isAutoSaveEnabled = true,
+  onToggleAutoSave,
+  onOpenProjectManager,
+  onClearExamples,
+  lastSavedAt,
+  projectsCount = 1,
+  hasExamples = false
 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -85,35 +103,70 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-slate-950 border-b border-slate-800 text-slate-100 sticky top-0 z-50 shadow-xl backdrop-blur-md bg-opacity-95">
       {/* Top Brand Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Title & Series */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Title, Series & Project Switcher */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-rose-500 p-0.5 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-              <Clapperboard className="w-5 h-5 text-cyan-400" />
+          <button
+            onClick={onOpenProjectManager}
+            className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-rose-500 p-0.5 flex items-center justify-center shadow-lg shadow-cyan-500/20 hover:scale-105 transition-all cursor-pointer group"
+            title="Open Project Manager & Autosave Center"
+          >
+            <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center group-hover:bg-slate-900 transition-colors">
+              <FolderGit2 className="w-5 h-5 text-cyan-400" />
             </div>
-          </div>
+          </button>
+          
           <div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 uppercase tracking-wider">
-                {seriesTitle}
-              </span>
-              <span className="text-xs text-slate-400 flex items-center space-x-1">
+              <button
+                onClick={onOpenProjectManager}
+                className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 uppercase tracking-wider hover:bg-cyan-900 transition cursor-pointer flex items-center gap-1"
+                title="Switch projects or manage workspace"
+              >
+                <span>{seriesTitle}</span>
+                <ChevronDown className="w-3 h-3 text-cyan-400" />
+              </button>
+              
+              <span className="text-xs text-slate-400 hidden sm:flex items-center space-x-1">
                 <Clock className="w-3 h-3 text-amber-400" />
-                <span>Target: {targetDurationMin}m Episode</span>
+                <span>Target: {targetDurationMin}m</span>
               </span>
+
+              {hasExamples && onClearExamples && (
+                <button
+                  onClick={onClearExamples}
+                  className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 transition cursor-pointer flex items-center gap-1"
+                  title="Clear all example scenes, cast, and shots to start with a blank slate"
+                >
+                  <Eraser className="w-3 h-3 text-rose-400" />
+                  <span>Clear Examples</span>
+                </button>
+              )}
             </div>
-            <h1 className="text-lg font-bold text-slate-100 tracking-tight flex items-center gap-2">
-              {title}
-            </h1>
+
+            <div className="flex items-center space-x-2 mt-0.5">
+              <h1 
+                onClick={onOpenProjectManager}
+                className="text-lg font-bold text-slate-100 tracking-tight flex items-center gap-2 hover:text-cyan-300 transition cursor-pointer"
+                title="Click to manage or switch projects"
+              >
+                <span>{title}</span>
+              </h1>
+              <button
+                onClick={onOpenProjectManager}
+                className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition cursor-pointer flex items-center gap-1"
+              >
+                <span>Projects ({projectsCount})</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Middle: Style LoRA Selector */}
-        <div className="flex items-center space-x-3 bg-slate-900/90 border border-slate-800 rounded-lg p-1.5 px-3">
+        <div className="hidden lg:flex items-center space-x-3 bg-slate-900/90 border border-slate-800 rounded-lg p-1.5 px-3">
           <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
           <div className="text-xs">
-            <span className="text-slate-400 block font-mono">Style LoRA Lock:</span>
+            <span className="text-slate-400 block font-mono">Style LoRA:</span>
             <select
               value={currentStyle.id}
               onChange={(e) => {
@@ -141,63 +194,85 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Quick Action & Auto-Save Status Badge */}
-        <div className="flex items-center space-x-3">
-          {/* On-Device Hardware GPU/CPU Acceleration Badge */}
-          <button
-            onClick={() => setActiveTab('vault')}
-            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 border border-cyan-500/50 text-xs font-mono font-bold shadow-lg transition-all cursor-pointer"
-            title="Click to view On-Device Hardware Engine & Local Embedded Models"
-          >
-            <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>On-Device GPU/CPU: WebGPU Active</span>
-          </button>
+        {/* Right: Autosave Controls, Manual Save Button & Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* User Requested: Autosave Button (Toggle & Status) */}
+          {onToggleAutoSave && (
+            <button
+              onClick={onToggleAutoSave}
+              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold shadow-md transition-all cursor-pointer ${
+                isAutoSaveEnabled
+                  ? 'bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 border border-cyan-500/60 shadow-cyan-500/10'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+              }`}
+              title={isAutoSaveEnabled ? "Autosave is ON. Click to toggle OFF." : "Autosave is OFF. Click to turn ON."}
+            >
+              <Zap className={`w-3.5 h-3.5 ${isAutoSaveEnabled ? 'text-cyan-400 animate-pulse' : 'text-slate-500'}`} />
+              <span>{isAutoSaveEnabled ? 'Autosave: ON' : 'Autosave: OFF'}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${isAutoSaveEnabled ? 'bg-cyan-400' : 'bg-slate-600'}`} />
+            </button>
+          )}
+
+          {/* User Requested: Manual Save Now Button */}
+          {onManualSaveSession && (
+            <button
+              onClick={onManualSaveSession}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold shadow-md transition-all cursor-pointer ${
+                hasUnsavedChanges
+                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 shadow-amber-500/20 animate-pulse hover:animate-none'
+                  : 'bg-slate-850 hover:bg-slate-800 text-emerald-400 border border-slate-750'
+              }`}
+              title={hasUnsavedChanges ? "You have unsynced edits. Click to save project now." : "Project is fully synced. Click to force snapshot."}
+            >
+              {hasUnsavedChanges ? (
+                <>
+                  <Save className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Save Project</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Saved</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Projects Hub / Switcher Button */}
+          {onOpenProjectManager && (
+            <button
+              onClick={onOpenProjectManager}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-mono font-semibold transition cursor-pointer"
+              title="Open Project Manager to switch projects or create a blank one"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Projects</span>
+            </button>
+          )}
 
           {/* Self-Healing System Active Button */}
           {onOpenSelfHealing && (
             <button
               onClick={onOpenSelfHealing}
-              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-500/50 text-xs font-mono font-bold shadow-lg transition-all cursor-pointer"
+              className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 border border-emerald-500/50 text-xs font-mono font-bold shadow-lg transition-all cursor-pointer"
               title="Click to run self-healing diagnostic sweep"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span>Self-Healing Loop: Active</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Self-Healing</span>
             </button>
           )}
-
-          {/* Auto Save Session Status Badge */}
-          {hasUnsavedChanges ? (
-            <button
-              onClick={onManualSaveSession}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/90 hover:bg-amber-900 text-amber-300 border border-amber-500/60 text-xs font-mono font-bold shadow-lg shadow-amber-500/10 transition-all cursor-pointer"
-              title="You have unsynced edits. Click to save session now."
-            >
-              <Save className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>Session: Unsynced Edits</span>
-            </button>
-          ) : (
-            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 text-xs font-mono font-medium">
-              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Session: Synced</span>
-            </div>
-          )}
-
-          <div className="hidden lg:flex items-center space-x-1.5 text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2.5 py-1 rounded-md">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span className="font-medium">Cast Retention Lock Active</span>
-          </div>
 
           <button
             onClick={onAutoGenerateAll}
             disabled={isGenerating}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-lg transition-all duration-200 ${
+            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-lg transition-all duration-200 ${
               isGenerating
                 ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
                 : 'bg-gradient-to-r from-cyan-500 via-indigo-600 to-rose-500 text-white hover:opacity-95 shadow-cyan-500/20 active:scale-95'
             }`}
           >
-            <Wand2 className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
-            <span>{isGenerating ? 'Building Batch...' : '1-Click Full Production'}</span>
+            <Wand2 className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            <span>{isGenerating ? 'Generating...' : 'Production'}</span>
           </button>
         </div>
       </div>

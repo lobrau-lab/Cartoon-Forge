@@ -4,7 +4,6 @@ import {
   Clock, 
   Film, 
   Target, 
-  Zap, 
   Sliders, 
   CheckCircle2, 
   AlertTriangle, 

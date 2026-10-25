@@ -168,7 +168,11 @@ export interface EpisodeProject {
   dubbingTracks: DubbingTrack[];
   voiceVaultSamples?: VoiceVaultSample[];
   updatedAt: string;
+  isBlankProject?: boolean;
+  autoSaveEnabled?: boolean;
 }
+
+export type AutoSaveStatus = 'saved' | 'saving' | 'unsaved' | 'disabled';
 
 export interface HubModelItem {
   id: string;
@@ -241,6 +245,47 @@ export interface ExportFormats {
   storyboardManifest: string;
   fileManifest: string;
 }
+
+export type ExportPresetType = 'draft' | 'final' | 'social-media-shorts' | 'custom';
+
+export interface ExportConfiguration {
+  preset: ExportPresetType;
+  resolution: string; // e.g. "1280x720", "1920x1080", "1080x1920", "3840x2160"
+  width: number;
+  height: number;
+  frameRate: number; // 24, 30, 60
+  aspectRatio: '16:9' | '9:16' | '2.39:1' | '4:3';
+  audioMode: 'multi-track' | 'stereo-mix' | 'scratch-dialogue';
+  bitrateTier: 'draft-proxy' | 'master-prores' | 'mobile-web';
+  watermark: 'none' | 'draft-workprint' | 'timecode-hud' | 'safe-zone';
+  colorProfile: 'rec709' | 'anime-vivid' | 'grading-log';
+  includeManifest: boolean;
+  subtitles: 'none' | 'embedded-srt' | 'fountain-cues' | 'burned-in';
+}
+
+export interface QueuedExportJob {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  episodeNumber: number;
+  seriesTitle: string;
+  preset: ExportPresetType;
+  config: ExportConfiguration;
+  formats: Array<'otio' | 'fountain' | 'xml' | 'edl' | 'manifest'>;
+  targetProject?: EpisodeProject;
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'paused';
+  progress: number;
+  currentPhase: string;
+  activeFormatId?: 'otio' | 'fountain' | 'xml' | 'edl' | 'manifest';
+  queuedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationSec?: number;
+  totalSizeKb?: number;
+  result?: ExportFormats;
+  error?: string;
+}
+
 
 export interface CharacterInternalArc {
   characterId: string;

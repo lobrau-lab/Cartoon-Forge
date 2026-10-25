@@ -14,36 +14,22 @@ import {
   Sparkles, 
   AlertTriangle, 
   CheckCircle2, 
-  Sliders, 
   ShieldCheck, 
   Wand2, 
-  RotateCcw, 
-  Eye, 
   Layers, 
-  ArrowRight, 
-  Zap, 
-  Sun, 
-  Users, 
-  Terminal, 
   Check, 
   Copy, 
   Filter, 
   SlidersHorizontal,
-  ChevronRight,
-  TrendingDown,
-  TrendingUp,
-  RefreshCw,
   Gauge
 } from 'lucide-react';
-import { EpisodeProject, ProjectStyle, CharacterAnchor, ShotItem } from '../types';
+import { EpisodeProject, ShotItem } from '../types';
 import { 
   calculateShotStyleDelta, 
   calculateSceneStyleDeltaSummary, 
   calculateProjectStyleDeltaSummary,
   autoAdjustShot,
-  batchAutoAdjustShots,
-  ShotStyleDelta,
-  SceneStyleDeltaSummary
+  batchAutoAdjustShots
 } from '../utils/styleDeltaEngine';
 import { registerRealTimeHeal } from '../utils/selfHealingEngine';
 

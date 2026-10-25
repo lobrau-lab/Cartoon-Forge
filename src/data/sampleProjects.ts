@@ -407,3 +407,25 @@ export const MOCK_PROJECT: EpisodeProject = {
     }
   ]
 };
+
+export const createBlankProject = (
+  title = 'Untitled Anime Episode',
+  seriesTitle = 'Original Anime Series',
+  episodeNumber = 1
+): EpisodeProject => ({
+  id: `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+  title,
+  seriesTitle,
+  episodeNumber,
+  targetDurationMin: 24,
+  style: PRESET_STYLES[0],
+  cast: [],
+  scenes: [],
+  shots: [],
+  dubbingTracks: [],
+  voiceVaultSamples: [],
+  isBlankProject: true,
+  updatedAt: new Date().toISOString()
+});
+
+export const BLANK_PROJECT: EpisodeProject = createBlankProject();

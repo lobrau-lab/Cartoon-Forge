@@ -191,6 +191,77 @@ function getGeminiClient() {
   });
 }
 
+// SSRF Prevention: Restrict service URLs strictly to authorized local loopback addresses
+const ALLOWED_LOCAL_HOSTS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  '[::1]',
+  '0.0.0.0',
+  'host.docker.internal'
+]);
+
+function sanitizeLocalServiceUrl(
+  inputUrl: unknown,
+  fallbackUrl: string,
+  allowedPorts?: number[]
+): { valid: boolean; url: string; error?: string } {
+  if (!inputUrl || typeof inputUrl !== 'string' || !inputUrl.trim()) {
+    return { valid: true, url: fallbackUrl };
+  }
+
+  const trimmed = inputUrl.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { valid: false, url: fallbackUrl, error: `Invalid URL format: ${trimmed}` };
+  }
+
+  // 1. Enforce HTTP or HTTPS protocol only
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return {
+      valid: false,
+      url: fallbackUrl,
+      error: `Disallowed protocol '${parsed.protocol}'. Only http: and https: are permitted.`
+    };
+  }
+
+  // 2. Hostname check: must be in allowed loopback/localhost set
+  const hostname = parsed.hostname.toLowerCase();
+  if (!ALLOWED_LOCAL_HOSTS.has(hostname)) {
+    return {
+      valid: false,
+      url: fallbackUrl,
+      error: `SSRF Blocked: Target host '${hostname}' is not authorized. Requests are restricted strictly to local loopback services.`
+    };
+  }
+
+  // 3. Port check
+  const port = parsed.port
+    ? parseInt(parsed.port, 10)
+    : (parsed.protocol === 'https:' ? 443 : 80);
+
+  if (isNaN(port) || port < 1 || port > 65535) {
+    return { valid: false, url: fallbackUrl, error: `Invalid port: ${parsed.port}` };
+  }
+
+  if (port < 1024 && port !== 80 && port !== 443) {
+    return { valid: false, url: fallbackUrl, error: `Disallowed privileged port ${port}.` };
+  }
+
+  if (allowedPorts && allowedPorts.length > 0 && !allowedPorts.includes(port)) {
+    return {
+      valid: false,
+      url: fallbackUrl,
+      error: `Port ${port} is not in the allowed local service ports list (${allowedPorts.join(', ')}).`
+    };
+  }
+
+  const sanitized = `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '')}`;
+  return { valid: true, url: sanitized };
+}
+
 // -------------------------------------------------------------
 // API Endpoints
 // -------------------------------------------------------------
@@ -205,7 +276,11 @@ app.post('/api/script/generate', async (req, res) => {
     const { premise, genre, targetDurationMin, styleName, characterList, model, ollamaUrl, ollamaModel, localLlamaUrl, localLlamaModel, hwConfig } = req.body;
     
     if (model === 'local-llama-mlx' || model === 'llama-server' || model === 'mlx-server' || (model && (model.startsWith('llama:') || model.startsWith('mlx:')))) {
-      const activeUrl = localLlamaUrl || req.body.url || 'http://127.0.0.1:8080';
+      const urlCheck = sanitizeLocalServiceUrl(localLlamaUrl || req.body.url, 'http://127.0.0.1:8080');
+      if (!urlCheck.valid) {
+        return res.status(400).json({ error: urlCheck.error });
+      }
+      const activeUrl = urlCheck.url;
       const activeModel = localLlamaModel || req.body.modelName || 'qwen2.5-7b-instruct';
       console.log(`[LOCAL LLAMA/MLX SCRIPT GENERATION] Querying instance at ${activeUrl} using model ${activeModel}...`);
 
@@ -292,7 +367,11 @@ Return ONLY a valid JSON array of scenes matching this schema:
     }
 
     if (model === 'ollama' || (model && model.startsWith('ollama:'))) {
-      const activeOllamaUrl = ollamaUrl || 'http://127.0.0.1:11434';
+      const ollamaCheck = sanitizeLocalServiceUrl(ollamaUrl, 'http://127.0.0.1:11434');
+      if (!ollamaCheck.valid) {
+        return res.status(400).json({ error: ollamaCheck.error });
+      }
+      const activeOllamaUrl = ollamaCheck.url;
       const activeOllamaModel = ollamaModel || model.replace('ollama:', '') || 'llama3';
       console.log(`[LOCAL OLLAMA SCRIPT GENERATION] Querying Ollama at ${activeOllamaUrl} using model ${activeOllamaModel}...`);
       
@@ -598,7 +677,11 @@ app.post('/api/script/fix', async (req, res) => {
     const { scenes, styleTag, characters, model, ollamaUrl, ollamaModel, localLlamaUrl, localLlamaModel, hwConfig } = req.body;
     
     if (model === 'local-llama-mlx' || model === 'llama-server' || model === 'mlx-server' || (model && (model.startsWith('llama:') || model.startsWith('mlx:')))) {
-      const activeUrl = localLlamaUrl || req.body.url || 'http://127.0.0.1:8080';
+      const urlCheck = sanitizeLocalServiceUrl(localLlamaUrl || req.body.url, 'http://127.0.0.1:8080');
+      if (!urlCheck.valid) {
+        return res.status(400).json({ error: urlCheck.error });
+      }
+      const activeUrl = urlCheck.url;
       const activeModel = localLlamaModel || req.body.modelName || 'qwen2.5-7b-instruct';
       console.log(`[LOCAL LLAMA/MLX SCRIPT DOCTOR] Querying instance at ${activeUrl} using model ${activeModel}...`);
 
@@ -672,7 +755,11 @@ Return ONLY a raw JSON object:
     }
 
     if (model === 'ollama' || (model && model.startsWith('ollama:'))) {
-      const activeOllamaUrl = ollamaUrl || 'http://127.0.0.1:11434';
+      const ollamaCheck = sanitizeLocalServiceUrl(ollamaUrl, 'http://127.0.0.1:11434');
+      if (!ollamaCheck.valid) {
+        return res.status(400).json({ error: ollamaCheck.error });
+      }
+      const activeOllamaUrl = ollamaCheck.url;
       const activeOllamaModel = ollamaModel || model.replace('ollama:', '') || 'llama3';
       console.log(`[LOCAL OLLAMA SCRIPT DOCTOR] Querying Ollama at ${activeOllamaUrl} using model ${activeOllamaModel}...`);
       
@@ -1401,7 +1488,11 @@ app.post('/api/storyboard/diffuse-keyframe', async (req, res) => {
     }
 
     if (selectedModel === 'Local MLX Studio FLUX.1 Schnell') {
-      const activeLocalUrl = req.body.localDiffusionUrl || 'http://127.0.0.1:8080';
+      const sanitizedLocalDiff = sanitizeLocalServiceUrl(req.body.localDiffusionUrl, 'http://127.0.0.1:8080');
+      if (!sanitizedLocalDiff.valid) {
+        return res.status(400).json({ error: sanitizedLocalDiff.error || 'Invalid local diffusion service URL' });
+      }
+      const activeLocalUrl = sanitizedLocalDiff.url;
       const activeLocalModel = req.body.localDiffusionModel || 'flux-schnell';
       console.log(`[LOCAL MLX DIFFUSION] Directing request to MLX Image Server at ${activeLocalUrl} for model ${activeLocalModel}...`);
       try {
@@ -1658,17 +1749,26 @@ app.post('/api/orchestrator/run-flow', async (req, res) => {
 
 // 6. Project Export (OpenTimelineIO, Fountain Screenplay, Final Cut XML, EDL)
 app.post('/api/export/project', (req, res) => {
-  const { project } = req.body;
+  const { project, config } = req.body;
   if (!project) {
     return res.status(400).json({ error: 'Project data required' });
   }
+
+  const exportPreset = config?.preset || 'final';
+  const width = config?.width || (exportPreset === 'social-media-shorts' ? 1080 : exportPreset === 'draft' ? 1280 : 1920);
+  const height = config?.height || (exportPreset === 'social-media-shorts' ? 1920 : exportPreset === 'draft' ? 720 : 1080);
+  const fps = config?.frameRate || (exportPreset === 'social-media-shorts' ? 30 : project.style?.frameRate || 24);
+  const watermarkText = config?.watermark === 'draft-workprint' ? 'DRAFT WORKPRINT - FOR INTERNAL REVIEW ONLY' : (config?.watermark === 'safe-zone' ? 'SAFE-ZONE PREVIEW - MOBILE 9:16' : '');
 
   // Generate Fountain format Screenplay
   let fountainText = `Title: ${project.title || 'Untitled Episode'}
 Credit: Written by Anime Production Suite AI
 Author: ${project.seriesTitle || 'Anime Studio'}
 Draft date: ${new Date().toLocaleDateString()}
-Width: 8.5 inches
+Export Preset: ${exportPreset.toUpperCase()}
+Target Resolution: ${width}x${height} (${config?.aspectRatio || (width > height ? '16:9' : '9:16')})
+Frame Rate: ${fps} fps
+${watermarkText ? `Watermark: ${watermarkText}\n` : ''}Width: 8.5 inches
 Height: 11 inches
 
 ===
@@ -1690,7 +1790,11 @@ Height: 11 inches
     OTIO_SCHEMA: "Timeline.1",
     metadata: {
       generator: "Anime/Cartoon Production Suite AI",
-      fps: project.style?.frameRate || 24,
+      fps: fps,
+      exportPreset: exportPreset,
+      resolution: `${width}x${height}`,
+      aspectRatio: config?.aspectRatio || (width > height ? '16:9' : '9:16'),
+      watermark: watermarkText || undefined,
       styleLora: project.style?.loraTag || ""
     },
     name: project.title,
@@ -1706,8 +1810,8 @@ Height: 11 inches
             name: `Shot_${shot.shotNumber}_${shot.shotType}`,
             source_range: {
               OTIO_SCHEMA: "TimeRange.1",
-              start_time: { OTIO_SCHEMA: "RationalTime.1", value: 0, rate: 24 },
-              duration: { OTIO_SCHEMA: "RationalTime.1", value: (shot.durationSec || 4) * 24, rate: 24 }
+              start_time: { OTIO_SCHEMA: "RationalTime.1", value: 0, rate: fps },
+              duration: { OTIO_SCHEMA: "RationalTime.1", value: (shot.durationSec || 4) * fps, rate: fps }
             },
             media_reference: {
               OTIO_SCHEMA: "ExternalReference.1",
@@ -1724,8 +1828,8 @@ Height: 11 inches
             name: `Dub_${shot.charactersInShot?.[0] || 'Dialogue'}`,
             source_range: {
               OTIO_SCHEMA: "TimeRange.1",
-              start_time: { OTIO_SCHEMA: "RationalTime.1", value: 0, rate: 24 },
-              duration: { OTIO_SCHEMA: "RationalTime.1", value: (shot.durationSec || 3) * 24, rate: 24 }
+              start_time: { OTIO_SCHEMA: "RationalTime.1", value: 0, rate: fps },
+              duration: { OTIO_SCHEMA: "RationalTime.1", value: (shot.durationSec || 3) * fps, rate: fps }
             }
           }))
         }
@@ -1738,14 +1842,14 @@ Height: 11 inches
 <!DOCTYPE xmeml>
 <xmeml version="5">
   <sequence id="seq_1">
-    <name>${project.title}</name>
-    <rate><timebase>${project.style?.frameRate || 24}</timebase></rate>
+    <name>${project.title} (${exportPreset.toUpperCase()})</name>
+    <rate><timebase>${fps}</timebase></rate>
     <media>
       <video>
         <format>
           <samplecharacteristics>
-            <width>1920</width>
-            <height>1080</height>
+            <width>${width}</width>
+            <height>${height}</height>
           </samplecharacteristics>
         </format>
       </video>
@@ -1858,8 +1962,10 @@ Height: 11 inches
       seriesTitle: project.seriesTitle || 'Anime Series',
       episodeNumber: project.episodeNumber || 1,
       targetDurationMin: project.targetDurationMin || 24,
-      frameRate: project.style?.frameRate || 24,
-      resolution: "1920x1080 (1080p HDTV)",
+      frameRate: fps,
+      exportPreset: exportPreset,
+      resolution: `${width}x${height}`,
+      aspectRatio: config?.aspectRatio || (width > height ? '16:9' : '9:16'),
       colorSpace: "Rec.709 sRGB",
       compiledAt: new Date().toISOString(),
       checksumSha256: `sha256-${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`
@@ -3199,7 +3305,16 @@ app.post('/api/auto-connect/probe-all', async (req, res) => {
 // Proxy endpoint to query local Ollama tags (to check models & connection status)
 app.post('/api/ollama/status', async (req, res) => {
   const { url } = req.body;
-  const targetUrl = url || 'http://127.0.0.1:11434';
+  const sanitized = sanitizeLocalServiceUrl(url, 'http://127.0.0.1:11434');
+  if (!sanitized.valid) {
+    return res.status(400).json({
+      success: false,
+      connected: false,
+      error: sanitized.error,
+      url: url || 'http://127.0.0.1:11434'
+    });
+  }
+  const targetUrl = sanitized.url;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for rapid checks
@@ -3237,7 +3352,16 @@ app.post('/api/ollama/status', async (req, res) => {
 // Proxy endpoint to query local Llama Server (llama.cpp) or MLX LM Server (mlx_lm.server) status
 app.post('/api/local-llm/status', async (req, res) => {
   const { url, serverType } = req.body;
-  const targetUrl = url || 'http://127.0.0.1:8080';
+  const sanitized = sanitizeLocalServiceUrl(url, 'http://127.0.0.1:8080');
+  if (!sanitized.valid) {
+    return res.status(400).json({
+      success: false,
+      connected: false,
+      error: sanitized.error,
+      url: url || 'http://127.0.0.1:8080'
+    });
+  }
+  const targetUrl = sanitized.url;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
@@ -3315,7 +3439,14 @@ app.post('/api/local-llm/status', async (req, res) => {
 // Endpoint to run inference against local Llama / MLX Serve instance
 app.post('/api/local-llm/generate', async (req, res) => {
   const { url, model, prompt, systemPrompt, temperature, maxTokens } = req.body;
-  const targetUrl = url || 'http://127.0.0.1:8080';
+  const sanitized = sanitizeLocalServiceUrl(url, 'http://127.0.0.1:8080');
+  if (!sanitized.valid) {
+    return res.status(400).json({
+      success: false,
+      error: sanitized.error
+    });
+  }
+  const targetUrl = sanitized.url;
   const activeModel = model || 'qwen2.5-7b-instruct';
   const temp = typeof temperature === 'number' ? temperature : 0.7;
   const maxTok = maxTokens || 512;
@@ -3377,7 +3508,16 @@ app.post('/api/local-llm/generate', async (req, res) => {
 // Proxy endpoint to query local image diffusion status (MLX Studio / ComfyUI / Stable Diffusion WebUI)
 app.post('/api/local-diffusion/status', async (req, res) => {
   const { url } = req.body;
-  const targetUrl = url || 'http://127.0.0.1:8080';
+  const sanitized = sanitizeLocalServiceUrl(url, 'http://127.0.0.1:8080');
+  if (!sanitized.valid) {
+    return res.status(400).json({
+      success: false,
+      connected: false,
+      error: sanitized.error,
+      url: url || 'http://127.0.0.1:8080'
+    });
+  }
+  const targetUrl = sanitized.url;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout for rapid checks
@@ -3429,7 +3569,20 @@ app.post('/api/diagnostics/ping-service', async (req, res) => {
     return res.status(400).json({ error: 'Target URL is required' });
   }
 
-  const targetUrl = url.trim().replace(/\/+$/, '');
+  const sanitized = sanitizeLocalServiceUrl(url, 'http://127.0.0.1:8080');
+  if (!sanitized.valid) {
+    return res.status(400).json({
+      success: false,
+      serviceId: serviceId || 'service',
+      url,
+      serviceType,
+      category,
+      connected: false,
+      error: sanitized.error,
+      timestamp: new Date().toLocaleTimeString()
+    });
+  }
+  const targetUrl = sanitized.url;
   const startTime = performance.now();
   const endpointsTested: string[] = [];
   let connected = false;
@@ -3695,7 +3848,19 @@ app.post('/api/diagnostics/probe-all', async (req, res) => {
     services.map(async (srv: any) => {
       try {
         const start = performance.now();
-        const targetUrl = (srv.url || '').trim().replace(/\/+$/, '');
+        const rawUrl = (srv.url || '').trim();
+        const sanitized = sanitizeLocalServiceUrl(rawUrl, 'http://127.0.0.1:8080');
+        if (!sanitized.valid) {
+          return {
+            id: srv.id,
+            url: rawUrl,
+            connected: false,
+            latencyMs: 0,
+            error: sanitized.error,
+            timestamp: new Date().toLocaleTimeString()
+          };
+        }
+        const targetUrl = sanitized.url;
         let connected = false;
         let httpStatus: number | null = null;
         let models: any[] = [];
